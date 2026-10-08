@@ -10,15 +10,14 @@ export class World {
 
         this.map.forEach((row, rowIndex) => {
             row.forEach((cell, colIndex) => {
-                const cellElement = $("<div><span>CELULA</span></div>");
-                cellElement.addClass("cell");
-                cellElement.css("width", `${tamanhoCelula}px`);
-                cellElement.css("height", `${tamanhoCelula}px`);
-                cellElement.attr("data-row", rowIndex);
-                cellElement.attr("data-col", colIndex);
-                htmlMap.append(cellElement);
+
             });
         });
+
+        this.largura = this.colunas * this.tamanhoCelula
+            + (this.colunas - 1) * this.tamanhoGap;
+        this.altura = this.linhas * this.tamanhoCelula
+            + (this.linhas - 1) * this.tamanhoGap;
 
         this.htmlMap = htmlMap;
     }
@@ -30,7 +29,6 @@ export class World {
         ];
     }
     atualizaColRow(col, row) {
-        this.htmlMap.find(`.cell[data-row="${row}"][data-col="${col}"]`).text("MAQUINA");
     }
     construir(col, row, maquina) {
         this.map[row][col] = maquina;

@@ -1,4 +1,5 @@
-const htmlMap = $(".d-grid");
+const htmlMap = $("#gameCanvas");
+const ctx = htmlMap[0].getContext("2d");
 const cameraRotação = $(".camera-rotação");
 
 import { Parede } from "./js/Buildings.js";
@@ -7,11 +8,13 @@ import { Player } from "./js/Player.js";
 import { Builder } from "./js/Builder.js";
 
 const keys = { w: false, a: false, s: false, d: false };
-const linhas = 100;
-const colunas = 100;
+const linhas = 10;
+const colunas = 10;
 const tamanhoCelula = 60;
-const tamanhoGap = 2;
+const tamanhoGap = 1;
 let zoom = 4;
+let pixelRatio = 1;
+let canvasSize = 0;
 let visaoDeCima = false;
 let mouseX;
 let mouseY;
@@ -21,10 +24,22 @@ let ultimaCelulaMouse = null;
 var celularSobMouse = null;
 var anguloAtual = 0; // 0, 90, 180, 270...
 
-htmlMap.css("transform-origin", "0 0");
-htmlMap.css("grid-template-columns", `repeat(${colunas}, ${tamanhoCelula}px)`);
-htmlMap.css("grid-template-rows", `repeat(${linhas}, ${tamanhoCelula}px)`);
-htmlMap.css("gap", `${tamanhoGap}px`);
+
+
+htmlMap.css("transform", "none");
+
+function redimensionarCanvas() {
+    pixelRatio = window.devicePixelRatio || 1;
+    canvasSize = Math.max(window.innerWidth, window.innerHeight) * 2;
+    htmlMap[0].width = Math.round(canvasSize * pixelRatio);
+    htmlMap[0].height = Math.round(canvasSize * pixelRatio);
+    htmlMap[0].style.setProperty("width", "100%", "important");
+    htmlMap[0].style.setProperty("height", "100%", "important");
+    cameraRotação[0].style.width = `${canvasSize}px`;
+    cameraRotação[0].style.height = `${canvasSize}px`;
+}
+
+redimensionarCanvas();
 
 var save = JSON.parse(localStorage.getItem("gameSave")) || null;
 
@@ -42,12 +57,29 @@ if(save?.config?.anguloAtual) {
 }
 
 const world = new World(linhas, colunas, tamanhoCelula, tamanhoGap, htmlMap, save?.world || null);
-const player = new Player(htmlMap, save?.player?.x || 0, save?.player?.y || 0);
+const player = new Player(
+    htmlMap,
+    save?.player?.x || 0,
+    save?.player?.y || 0,
+    world.largura,
+    world.altura
+);
 const builder = new Builder(player, world, alcanceMouse);
 builder.maquinaSelecionada = Parede;
 window.player = player;
 window.world = world;
 world.map = save?.world || world.map;
+
+function atualizarTransformacaoCamera() {
+    cameraRotação[0].style.transform = `
+        translate3d(-50%, -50%, 0)
+        perspective(1000px)
+        rotateX(${visaoDeCima ? 0 : 50}deg)
+        rotateZ(${anguloAtual}deg)
+    `;
+}
+
+atualizarTransformacaoCamera();
 
 
 function detectarPiso(x, y) {
@@ -96,7 +128,7 @@ function atualizarTecla(event, pressionada) {
 }
 
 function moverPlayer() {
-   let inputX = 0;
+    let inputX = 0;
     let inputY = 0;
 
     if (keys.a) inputX -= 1;
@@ -115,52 +147,49 @@ function moverPlayer() {
     player.vy = dy;
     player.movimento();
     atualizarMouse();
-
-    const playerCenterX = player.x + player.tamanhoPlayer / 2;
-    const playerCenterY = player.y + player.tamanhoPlayer / 2;
-
-
-
-    // A câmera vai para o centro da tela e gira o mundo
-    cameraRotação.css("transform", `
-        translate3d(${window.innerWidth / 2}px, ${window.innerHeight / 2}px, 0)
-        perspective(1000px)
-        rotateX(${visaoDeCima ? 0 : 50}deg)
-        rotateZ(var(--angulo-mundo, 0deg)) 
-    `);
-
-    // O grid apenas puxa o player para o eixo 0,0 e aplica o zoom instantaneamente
-    htmlMap.css("transform", `
-        scale(${zoom})
-        translate3d(${-playerCenterX}px, ${-playerCenterY}px, 0)
-    `);
 }
 
 
 function atualizarCelulas() {
-    const [playerY, playerX] = detectarPiso(
-        player.x + player.tamanhoPlayer / 2,
-        player.y + player.tamanhoPlayer / 2
-    );
-    htmlMap.find(".cell").removeClass("cellPisando");
-    htmlMap.find(`.cell[data-row="${playerY}"][data-col="${playerX}"]`).addClass("cellPisando");
+    const playerCenterX = player.x + player.tamanhoPlayer / 2;
+    const playerCenterY = player.y + player.tamanhoPlayer / 2;
 
-    if (ultimaCelulaMouse) {
-        ultimaCelulaMouse.removeClass("cellMouse lugarInvalido");
-    }
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, canvasSize, canvasSize);
 
-    const [mouseYGrid, mouseXGrid] = detectarPiso(mouseX, mouseY);
-    const celulaMouse = celularSobMouse;
-    if (!celulaMouse?.length) {
-        ultimaCelulaMouse = null;
-        return;
-    }
+    ctx.save();
+    ctx.translate(canvasSize / 2, canvasSize / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-playerCenterX, -playerCenterY);
 
-    const classeMouse = alcanceMouse(player, mouseXGrid, mouseYGrid, builder.alcance) ? "cellMouse" : "lugarInvalido";
-    celulaMouse.addClass(classeMouse);
-    ultimaCelulaMouse = celulaMouse;
+    desenharMundo(playerCenterX, playerCenterY);
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(player.x, player.y, player.tamanhoPlayer, player.tamanhoPlayer);
+
+    ctx.restore();
 }
 
+function desenharMundo(centroX, centroY) {
+    const margemCelulas = 20;
+    const passo = tamanhoCelula + tamanhoGap;
+    const metadeTelaX = canvasSize / (2 * zoom);
+    const metadeTelaY = canvasSize / (2 * zoom);
+    const primeiraColuna = Math.floor((centroX - metadeTelaX) / passo) - margemCelulas;
+    const ultimaColuna = Math.ceil((centroX + metadeTelaX) / passo) + margemCelulas;
+    const primeiraLinha = Math.floor((centroY - metadeTelaY) / passo) - margemCelulas;
+    const ultimaLinha = Math.ceil((centroY + metadeTelaY) / passo) + margemCelulas;
+
+    for (let y = primeiraLinha; y <= ultimaLinha; y++) {
+        for (let x = primeiraColuna; x <= ultimaColuna; x++) {
+            const pixelX = x * (tamanhoCelula + tamanhoGap);
+            const pixelY = y * (tamanhoCelula + tamanhoGap);
+
+            ctx.fillStyle = "#eee";
+            ctx.fillRect(pixelX, pixelY, tamanhoCelula, tamanhoCelula);
+        }
+    }
+}
 function atualizar() {
     moverPlayer();
     atualizarCelulas();
@@ -170,6 +199,7 @@ function atualizar() {
 $(window).on("keydown", event => atualizarTecla(event, true));
 $(window).on("keyup", event => atualizarTecla(event, false));
 $(window).on("mousemove", event => atualizarMouse(event));
+$(window).on("resize", redimensionarCanvas);
 $(window).on("wheel", event => {
     zoom *= event.originalEvent.deltaY < 0 ? 1.1 : 1 / 1.1;
     zoom = Math.max(0.5, Math.min(zoom, 5));
@@ -212,6 +242,8 @@ if(Number.isInteger(direcao)) {
     anguloAtual = direcao;
 }
 
+anguloAtual = ((anguloAtual + 180) % 360 + 360) % 360 - 180;
+
 
     const anguloMundo = `${anguloAtual}deg`;
     const anguloInverso = `${-anguloAtual}deg`;
@@ -222,6 +254,7 @@ if(Number.isInteger(direcao)) {
     root.style.setProperty('--angulo-inverso', anguloInverso);
 
     atualizarRotacaoSprites();
+    atualizarTransformacaoCamera();
 
     // Ouve o exato fim da transição do CSS, seja qual for a duração dela
     htmlMap.one('transitionend', () => {
@@ -234,8 +267,10 @@ if(Number.isInteger(direcao)) {
 $(window).on('keydown', (e) => {
     if (e.key === 'q') girarCamera('esq');
     if (e.key === 'e') girarCamera('dir');
-    if (e.key === 'r') {
+    if (e.code === 'KeyR') {
+        e.preventDefault();
         visaoDeCima = !visaoDeCima;
+        atualizarTransformacaoCamera();
         atualizarRotacaoSprites();
     }
 });

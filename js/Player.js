@@ -1,5 +1,5 @@
 export class Player {
-    constructor(htmlMap, spawnX, spawnY) {
+    constructor(htmlMap, spawnX, spawnY, mapW, mapH) {
         this.htmlMap = htmlMap;
         this.x = spawnX;
         this.y = spawnY;
@@ -7,29 +7,8 @@ export class Player {
         this.vy = 0;
         this.vx = 0;
         this.speed = 5;
-        this.p = $("<div></div>");
-
-        this.materializar();
-        this.atualizarLimites();
-        $(window).on("resize", () => this.atualizarLimites());
-    }
-
-    atualizarLimites() {
-        this.mapW = this.htmlMap.width();
-        this.mapH = this.htmlMap.height();
-    }
-
-    materializar() {
-        this.p.css("width", `${this.tamanhoPlayer}px`);
-        this.p.css("height", `${this.tamanhoPlayer}px`);
-        this.p.css("border", "2px solid red");
-        this.p.css("position", "absolute");
-        this.atualizarVisual();
-        this.htmlMap.append(this.p);
-    }
-
-    atualizarVisual() {
-        this.p.css("transform", `translate3d(${this.x}px, ${this.y}px, 0)`);
+        this.mapW = mapW;
+        this.mapH = mapH;
     }
 
     movimento() {
@@ -44,6 +23,5 @@ export class Player {
 
         this.x = Math.max(0, Math.min(this.mapW - this.tamanhoPlayer, this.x + vx));
         this.y = Math.max(0, Math.min(this.mapH - this.tamanhoPlayer, this.y + vy));
-        this.atualizarVisual();
     }
 }
