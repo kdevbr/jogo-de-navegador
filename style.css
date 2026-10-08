@@ -15,6 +15,7 @@
     gap: .5px;
     width: fit-content;
     transform-style: preserve-3d;
+    transform-style: flat;
     transform: perspective(1000px);
 }
 body {

@@ -7,8 +7,8 @@ import { Player } from "./js/Player.js";
 import { Builder } from "./js/Builder.js";
 
 const keys = { w: false, a: false, s: false, d: false };
-const linhas = 10;
-const colunas = 10;
+const linhas = 100;
+const colunas = 100;
 const tamanhoCelula = 60;
 const tamanhoGap = 2;
 let zoom = 4;
@@ -26,10 +26,29 @@ htmlMap.css("grid-template-columns", `repeat(${colunas}, ${tamanhoCelula}px)`);
 htmlMap.css("grid-template-rows", `repeat(${linhas}, ${tamanhoCelula}px)`);
 htmlMap.css("gap", `${tamanhoGap}px`);
 
-const world = new World(linhas, colunas, tamanhoCelula, tamanhoGap, htmlMap);
-const player = new Player(htmlMap, 10, 0);
+var save = JSON.parse(localStorage.getItem("gameSave")) || null;
+
+visaoDeCima = save?.config?.visaoDeCima || false;
+anguloAtual = save?.config?.anguloAtual || 0;
+zoom = save?.config?.zoom || 4;
+console.log(save);
+
+if(save?.config?.anguloAtual) {
+    let anguloMundo = `${anguloAtual}deg`;
+    let anguloInverso = `${-anguloAtual}deg`;
+    let root = document.documentElement;
+    root.style.setProperty('--angulo-mundo', anguloMundo);
+    root.style.setProperty('--angulo-inverso', anguloInverso);
+}
+
+const world = new World(linhas, colunas, tamanhoCelula, tamanhoGap, htmlMap, save?.world || null);
+const player = new Player(htmlMap, save?.player?.x || 0, save?.player?.y || 0);
 const builder = new Builder(player, world, alcanceMouse);
 builder.maquinaSelecionada = Parede;
+window.player = player;
+window.world = world;
+world.map = save?.world || world.map;
+
 
 function detectarPiso(x, y) {
     return world.pixelParaGrid(x, y);
@@ -99,6 +118,8 @@ function moverPlayer() {
 
     const playerCenterX = player.x + player.tamanhoPlayer / 2;
     const playerCenterY = player.y + player.tamanhoPlayer / 2;
+
+
 
     // A câmera vai para o centro da tela e gira o mundo
     cameraRotação.css("transform", `
@@ -176,11 +197,21 @@ function atualizarRotacaoSprites() {
         el.style.transform = `rotateZ(${-anguloAtual}deg) rotateX(${-rotacaoX}deg)`;
     });
 }
-
-function girarCamera(direcao) {
-    // Se direcao for 'esq' soma 90, se for 'dir' subtrai 90
+function girarCamera(direcao = null) {
     htmlMap.addClass("rodandoAnimação");
-    anguloAtual += (direcao === 'esq' ? 90 : -90);
+if(direcao === 'esq') {
+    anguloAtual += 90;
+}
+if(direcao === 'dir') {
+    anguloAtual -= 90;
+}
+if(direcao == null) {
+    anguloAtual = 0;
+}
+if(Number.isInteger(direcao)) {
+    anguloAtual = direcao;
+}
+
 
     const anguloMundo = `${anguloAtual}deg`;
     const anguloInverso = `${-anguloAtual}deg`;
@@ -193,6 +224,10 @@ function girarCamera(direcao) {
     atualizarRotacaoSprites();
 
     // Ouve o exato fim da transição do CSS, seja qual for a duração dela
+    htmlMap.one('transitionend', () => {
+        htmlMap.removeClass("rodandoAnimação");
+        console.log("Animação de rotação concluída.");
+    });
     console.log("Iniciando animação de rotação...");
 }
 // Exemplo: apertar Q e E para rodar a câmera
@@ -204,3 +239,17 @@ $(window).on('keydown', (e) => {
         atualizarRotacaoSprites();
     }
 });
+
+setInterval(salvarJogo, 500);
+function salvarJogo() {
+    localStorage.setItem("gameSave", JSON.stringify({
+        player: { x: player.x, y: player.y },
+        world: world.map,
+        config: {
+            visaoDeCima: visaoDeCima,
+            anguloAtual: anguloAtual,
+            zoom: zoom
+        }
+    }));
+    console.log("Jogo salvo!");
+}

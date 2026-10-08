@@ -6,7 +6,7 @@ export class Player {
         this.tamanhoPlayer = 40;
         this.vy = 0;
         this.vx = 0;
-        this.speed = 2;
+        this.speed = 5;
         this.p = $("<div></div>");
 
         this.materializar();

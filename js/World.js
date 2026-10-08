@@ -29,7 +29,7 @@ export class World {
             Math.floor(x / this.passo)
         ];
     }
-    atualizaColRow(col, row){
+    atualizaColRow(col, row) {
         this.htmlMap.find(`.cell[data-row="${row}"][data-col="${col}"]`).text("MAQUINA");
     }
     construir(col, row, maquina) {
