@@ -8,10 +8,10 @@ import { Player } from "./js/Player.js";
 import { Builder } from "./js/Builder.js";
 
 const keys = { w: false, a: false, s: false, d: false };
-const linhas = 10;
-const colunas = 10;
+const linhas = 20;
+const colunas = 20;
 const tamanhoCelula = 60;
-const tamanhoGap = 1;
+const tamanhoGap = 3;
 let zoom = 4;
 let pixelRatio = 1;
 let canvasSize = 0;
@@ -102,22 +102,28 @@ function atualizarMouse(event) {
     if (event) {
         ultimoEventoMouse = event;
     }
-
     if (!ultimoEventoMouse) return;
 
-    // Usa o target do último evento conhecido
-    const elementoSobMouse = document.elementFromPoint(ultimoEventoMouse.clientX, ultimoEventoMouse.clientY);
-    if (!elementoSobMouse) return;
+    const rect = htmlMap[0].getBoundingClientRect();
+    
+    // 1. Posição do mouse relativa ao centro da tela
+    const screenX = (ultimoEventoMouse.clientX - rect.left) - canvasSize / 2;
+    const screenY = (ultimoEventoMouse.clientY - rect.top) - canvasSize / 2;
 
-    celularSobMouse = $(elementoSobMouse).closest('.cell');
+    // 2. Reverte o zoom e soma o centro do Player para achar a coordenada no Mundo
+    const playerCenterX = player.x + player.tamanhoPlayer / 2;
+    const playerCenterY = player.y + player.tamanhoPlayer / 2;
+    const worldMouseX = (screenX / zoom) + playerCenterX;
+    const worldMouseY = (screenY / zoom) + playerCenterY;
 
-    if (celularSobMouse.length) {
-        const row = parseInt(celularSobMouse.attr('data-row'));
-        const col = parseInt(celularSobMouse.attr('data-col'));
+    // 3. Converte pixels do mundo para coordenadas da célula (grid)
+    const passo = tamanhoCelula + tamanhoGap;
+    const col = Math.floor(worldMouseX / passo);
+    const row = Math.floor(worldMouseY / passo);
 
-        mouseX = (col * tamanhoCelula) + (tamanhoCelula / 2);
-        mouseY = (row * tamanhoCelula) + (tamanhoCelula / 2);
-    }
+    // Salva a posição centralizada da célula apontada
+    mouseX = (col * passo) + (tamanhoCelula / 2);
+    mouseY = (row * passo) + (tamanhoCelula / 2);
 }
 function atualizarTecla(event, pressionada) {
     const tecla = event.key.toLowerCase();
@@ -127,7 +133,7 @@ function atualizarTecla(event, pressionada) {
     if (tecla === "d" || tecla === "arrowright") keys.d = pressionada;
 }
 
-function moverPlayer() {
+function moverPlayer(dt) {
     let inputX = 0;
     let inputY = 0;
 
@@ -145,7 +151,7 @@ function moverPlayer() {
 
     player.vx = dx;
     player.vy = dy;
-    player.movimento();
+    player.movimento(dt);
     atualizarMouse();
 }
 
@@ -156,7 +162,9 @@ function atualizarCelulas() {
 
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, canvasSize, canvasSize);
-
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+    
     ctx.save();
     ctx.translate(canvasSize / 2, canvasSize / 2);
     ctx.scale(zoom, zoom);
@@ -180,22 +188,37 @@ function desenharMundo(centroX, centroY) {
     const primeiraLinha = Math.floor((centroY - metadeTelaY) / passo) - margemCelulas;
     const ultimaLinha = Math.ceil((centroY + metadeTelaY) / passo) + margemCelulas;
 
+
     for (let y = primeiraLinha; y <= ultimaLinha; y++) {
         for (let x = primeiraColuna; x <= ultimaColuna; x++) {
-            const pixelX = x * (tamanhoCelula + tamanhoGap);
-            const pixelY = y * (tamanhoCelula + tamanhoGap);
+            const pixelX = x * passo;
+            const pixelY = y * passo;
+    
+            const dentroDoMapa =
+                x >= 0 &&
+                x < colunas &&
+                y >= 0 &&
+                y < linhas;
 
-            ctx.fillStyle = "#eee";
+            const corFundo = dentroDoMapa ? "#2b1704" : "#000000";
+
+        ctx.fillStyle = corFundo;
+        ctx.fillRect(pixelX, pixelY, passo, passo);
+
+            ctx.fillStyle = dentroDoMapa ? "#4b300f" : "#000000";
             ctx.fillRect(pixelX, pixelY, tamanhoCelula, tamanhoCelula);
         }
     }
 }
-function atualizar() {
-    moverPlayer();
+let ultimoTempo = performance.now();
+function atualizar(tempoAtual) {
+    const dt = (tempoAtual - ultimoTempo) / 16.666; // Normalizado para ~1 em 60 FPS
+    ultimoTempo = tempoAtual;
+
+    moverPlayer(dt);
     atualizarCelulas();
     requestAnimationFrame(atualizar);
 }
-
 $(window).on("keydown", event => atualizarTecla(event, true));
 $(window).on("keyup", event => atualizarTecla(event, false));
 $(window).on("mousemove", event => atualizarMouse(event));
@@ -215,8 +238,6 @@ setInterval(tickMaquinas, 1000);
 function tickMaquinas(){
     
 }
-
-
 
 function atualizarRotacaoSprites() {
     const rotacaoX = visaoDeCima ? 0 : 50;

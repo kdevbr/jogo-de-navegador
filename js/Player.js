@@ -10,15 +10,14 @@ export class Player {
         this.mapW = mapW;
         this.mapH = mapH;
     }
-
-    movimento() {
+movimento(dt = 1) {
         const len = Math.hypot(this.vx, this.vy);
         let vx = 0;
         let vy = 0;
 
         if (len > 0) {
-            vx = (this.vx / len) * this.speed;
-            vy = (this.vy / len) * this.speed;
+            vx = (this.vx / len) * this.speed * dt;
+            vy = (this.vy / len) * this.speed * dt;
         }
 
         this.x = Math.max(0, Math.min(this.mapW - this.tamanhoPlayer, this.x + vx));
