@@ -7,6 +7,7 @@ import { World } from "./js/World.js";
 import { Player } from "./js/Player.js";
 import { Builder } from "./js/Builder.js";
 
+
 const keys = { w: false, a: false, s: false, d: false };
 const linhas = 20;
 const colunas = 20;
@@ -23,8 +24,7 @@ var eventclientY
 let ultimaCelulaMouse = null;
 var celularSobMouse = null;
 var anguloAtual = 0; // 0, 90, 180, 270...
-
-
+var anguloR = 45
 
 htmlMap.css("transform", "none");
 
@@ -57,37 +57,26 @@ if(save?.config?.anguloAtual) {
 }
 
 const world = new World(linhas, colunas, tamanhoCelula, tamanhoGap, htmlMap, save?.world || null);
-const player = new Player(
-    htmlMap,
-    save?.player?.x || 0,
-    save?.player?.y || 0,
-    world.largura,
-    world.altura
-);
+const player = new Player(htmlMap,save?.player?.x || 0,save?.player?.y || 0,world.largura,world.altura);
 const builder = new Builder(player, world, alcanceMouse);
 builder.maquinaSelecionada = Parede;
 window.player = player;
 window.world = world;
 world.map = save?.world || world.map;
+world.gerarArvores();
 
 function atualizarTransformacaoCamera() {
     cameraRotação[0].style.transform = `
         translate3d(-50%, -50%, 0)
-        perspective(1000px)
-        rotateX(${visaoDeCima ? 0 : 50}deg)
+        perspective(3000px)
+        rotateX(${visaoDeCima ? 0 : anguloR}deg)
         rotateZ(${anguloAtual}deg)
     `;
 }
-
 atualizarTransformacaoCamera();
 
-
-function detectarPiso(x, y) {
-    return world.pixelParaGrid(x, y);
-}
-
 function alcanceMouse(playerAtual, alvoX, alvoY, alcance) {
-    const [playerY, playerX] = detectarPiso(
+    const [playerY, playerX] = world.pixelParaGrid(
         playerAtual.x + playerAtual.tamanhoPlayer / 2,
         playerAtual.y + playerAtual.tamanhoPlayer / 2
     );
@@ -106,10 +95,19 @@ function atualizarMouse(event) {
 
     const rect = htmlMap[0].getBoundingClientRect();
     
-    // 1. Posição do mouse relativa ao centro da tela
-    const screenX = (ultimoEventoMouse.clientX - rect.left) - canvasSize / 2;
-    const screenY = (ultimoEventoMouse.clientY - rect.top) - canvasSize / 2;
+// 1. Posição do mouse relativa ao centro da tela
+    const rawX = (ultimoEventoMouse.clientX - rect.left) - canvasSize / 2;
+    const rawY = (ultimoEventoMouse.clientY - rect.top) - canvasSize / 2;
 
+    // Rotação inversa do ângulo da câmera
+    const rad = -anguloAtual * (Math.PI / 180);
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+
+    const screenX = rawX * cos - rawY * sin;
+    const screenY = rawX * sin + rawY * cos;
+
+    // 2. Reverte o zoom e soma o centro do Player...
     // 2. Reverte o zoom e soma o centro do Player para achar a coordenada no Mundo
     const playerCenterX = player.x + player.tamanhoPlayer / 2;
     const playerCenterY = player.y + player.tamanhoPlayer / 2;
@@ -132,29 +130,10 @@ function atualizarTecla(event, pressionada) {
     if (tecla === "s" || tecla === "arrowdown") keys.s = pressionada;
     if (tecla === "d" || tecla === "arrowright") keys.d = pressionada;
 }
-
-function moverPlayer(dt) {
-    let inputX = 0;
-    let inputY = 0;
-
-    if (keys.a) inputX -= 1;
-    if (keys.d) inputX += 1;
-    if (keys.w) inputY -= 1;
-    if (keys.s) inputY += 1;
-
-    const angulo = -anguloAtual * Math.PI / 180;
-    const cos = Math.cos(angulo);
-    const sin = Math.sin(angulo);
-
-    const dx = inputX * cos - inputY * sin;
-    const dy = inputX * sin + inputY * cos;
-
-    player.vx = dx;
-    player.vy = dy;
-    player.movimento(dt);
+function moverPlayer(dt, keys) {
+    player.movimento(dt, keys, anguloAtual);
     atualizarMouse();
 }
-
 
 function atualizarCelulas() {
     const playerCenterX = player.x + player.tamanhoPlayer / 2;
@@ -170,15 +149,21 @@ function atualizarCelulas() {
     ctx.scale(zoom, zoom);
     ctx.translate(-playerCenterX, -playerCenterY);
 
-    desenharMundo(playerCenterX, playerCenterY);
+    const anguloXRad = (visaoDeCima ? 0 : anguloR) * (Math.PI / 180);
+    const fatorY = (1 / Math.cos(anguloXRad));
+    const anguloCameraRad = anguloAtual * (Math.PI / 180);
+    desenharMundo(playerCenterX, playerCenterY, fatorY);
 
-    ctx.fillStyle = "red";
-    ctx.fillRect(player.x, player.y, player.tamanhoPlayer, player.tamanhoPlayer);
 
+
+
+    //console.log("fatorY:", fatorY);
+
+    
     ctx.restore();
 }
 
-function desenharMundo(centroX, centroY) {
+function desenharMundo(centroX, centroY, fatorY) {
     const margemCelulas = 20;
     const passo = tamanhoCelula + tamanhoGap;
     const metadeTelaX = canvasSize / (2 * zoom);
@@ -188,37 +173,110 @@ function desenharMundo(centroX, centroY) {
     const primeiraLinha = Math.floor((centroY - metadeTelaY) / passo) - margemCelulas;
     const ultimaLinha = Math.ceil((centroY + metadeTelaY) / passo) + margemCelulas;
 
+    // Identifica as células do grid
+    const [playerY, playerX] = world.pixelParaGrid(player.x + player.tamanhoPlayer / 2, player.y + player.tamanhoPlayer / 2);
+    const [mouseYGrid, mouseXGrid] = world.pixelParaGrid(mouseX, mouseY);
+    const dentroDoAlcance = alcanceMouse(player, mouseXGrid, mouseYGrid, builder.alcance);
 
     for (let y = primeiraLinha; y <= ultimaLinha; y++) {
         for (let x = primeiraColuna; x <= ultimaColuna; x++) {
             const pixelX = x * passo;
             const pixelY = y * passo;
-    
-            const dentroDoMapa =
-                x >= 0 &&
-                x < colunas &&
-                y >= 0 &&
-                y < linhas;
 
-            const corFundo = dentroDoMapa ? "#2b1704" : "#000000";
+            const dentroDoMapa = x >= 0 && x < colunas && y >= 0 && y < linhas;
 
-        ctx.fillStyle = corFundo;
-        ctx.fillRect(pixelX, pixelY, passo, passo);
+            // Fundo / Borda
+            ctx.fillStyle = dentroDoMapa ? "#2b1704" : "#000000";
+            ctx.fillRect(pixelX, pixelY, passo, passo);
 
-            ctx.fillStyle = dentroDoMapa ? "#4b300f" : "#000000";
+            // Cor base do chão
+            let corChao = dentroDoMapa ? "#4b300f" : "#000000";
+
+
+
+            if (dentroDoMapa) {
+                if (x === playerX && y === playerY) {
+                    corChao = "#6a4e23"; // Cor da celula que o player está pisando
+                } else if (x === mouseXGrid && y === mouseYGrid) {
+                    corChao = dentroDoAlcance ? "#3b7a57" : "#8b0000"; // Verde se no alcance, vermelho se inválido
+                }
+            }
+
+            ctx.fillStyle = corChao;
             ctx.fillRect(pixelX, pixelY, tamanhoCelula, tamanhoCelula);
+
         }
     }
-}
-let ultimoTempo = performance.now();
-function atualizar(tempoAtual) {
-    const dt = (tempoAtual - ultimoTempo) / 16.666; // Normalizado para ~1 em 60 FPS
-    ultimoTempo = tempoAtual;
+// 2º LOOP: Junta player e árvores visíveis em uma lista
+    const filaDeDesenho = [];
 
-    moverPlayer(dt);
+    const angRad = anguloAtual * (Math.PI / 180);
+    const cos = Math.cos(angRad);
+    const sin = Math.sin(angRad);
+
+    // 2. Calcula a profundidade real na visão da câmera (eixo Y da tela)
+    function calcularProfundidadeTela(x, y) {
+        return x * sin + y * cos;
+    }
+
+    for (let y = primeiraLinha; y <= ultimaLinha; y++) {
+        for (let x = primeiraColuna; x <= ultimaColuna; x++) {
+            const dentroDoMapa = x >= 0 && x < colunas && y >= 0 && y < linhas;
+            const objeto = dentroDoMapa ? world.map[y][x] : null;
+
+            if (objeto) {
+                                const pixelX = x * passo;
+                const pixelY = y * passo;
+                filaDeDesenho.push({
+                    yBase: objeto.y + (objeto.tamanho || tamanhoCelula) / 2,
+                    desenhar: () => {
+                        objeto.atualizar(performance.now());
+                        objeto.desenhar(ctx, anguloAtual * (Math.PI / 180), fatorY, objeto.tamanho || tamanhoCelula);
+
+                    }
+                });
+            }
+        }
+    }
+
+    // Adiciona o Player na mesma fila
+    const direcaoX = player.olhandoPraDireita ? 1 : -1;
+    filaDeDesenho.push({
+        yBase: player.y + player.tamanhoPlayer / 2,
+        desenhar: () => {
+            player.desenhar(ctx, anguloAtual * (Math.PI / 180), fatorY, player.tamanhoPlayer, direcaoX);
+        }
+    });
+
+    // ORDENAÇÃO POR Y: quem está mais ao norte desenha primeiro, quem está ao sul desenha por cima
+    filaDeDesenho.sort((a, b) => {
+        return calcularProfundidadeTela(a.xBase, a.yBase) - calcularProfundidadeTela(b.xBase, b.yBase);
+    });
+
+    // Desenha tudo na ordem correta de profundidade
+    filaDeDesenho.forEach(item => item.desenhar());
+    
+}
+
+
+let animationState = "idle"; // Estado atual da animação
+let totalFramesSprites = 8;
+let frameAtualSprite = 0;
+let contadorFramesSprite = 0;
+let framesPorSprite = 100; // Ajuste este valor para controlar a velocidade da animação
+
+let ultimoTempo = performance.now();
+//----------------MAIS IMPORTANTE----------------
+function atualizar(tempoAtual) {
+const dt = (tempoAtual - ultimoTempo) / 16.666; // Normalizado para ~1 em 60 FPS
+    
+ultimoTempo = tempoAtual;
+player.atualizar(tempoAtual);
+    moverPlayer(dt, keys);
     atualizarCelulas();
     requestAnimationFrame(atualizar);
 }
+//----------------MAIS IMPORTANTE----------------
 $(window).on("keydown", event => atualizarTecla(event, true));
 $(window).on("keyup", event => atualizarTecla(event, false));
 $(window).on("mousemove", event => atualizarMouse(event));
@@ -240,7 +298,7 @@ function tickMaquinas(){
 }
 
 function atualizarRotacaoSprites() {
-    const rotacaoX = visaoDeCima ? 0 : 50;
+    const rotacaoX = visaoDeCima ? 0 : 90;
     const root = document.documentElement;
     root.style.setProperty('--rotacao-texto', `${-rotacaoX}deg`);
 
@@ -263,7 +321,6 @@ if(Number.isInteger(direcao)) {
     anguloAtual = direcao;
 }
 
-anguloAtual = ((anguloAtual + 180) % 360 + 360) % 360 - 180;
 
 
     const anguloMundo = `${anguloAtual}deg`;
@@ -286,17 +343,17 @@ anguloAtual = ((anguloAtual + 180) % 360 + 360) % 360 - 180;
 }
 // Exemplo: apertar Q e E para rodar a câmera
 $(window).on('keydown', (e) => {
+    e.preventDefault();
     if (e.key === 'q') girarCamera('esq');
     if (e.key === 'e') girarCamera('dir');
     if (e.code === 'KeyR') {
-        e.preventDefault();
         visaoDeCima = !visaoDeCima;
         atualizarTransformacaoCamera();
         atualizarRotacaoSprites();
     }
 });
 
-setInterval(salvarJogo, 500);
+//setInterval(salvarJogo, 500);
 function salvarJogo() {
     localStorage.setItem("gameSave", JSON.stringify({
         player: { x: player.x, y: player.y },
