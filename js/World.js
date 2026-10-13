@@ -38,14 +38,14 @@ export class World {
     gerarArvores() {
         // Gera árvores aleatórias no mundo
     const simplex = new SimplexNoise(); // Fórmula do ruído
-    const escala = 0.08; // Controla o tamanho das manchas de floresta
+    const escala = 0.8; // Controla o tamanho das manchas de floresta
 
     for (let row = 0; row < this.linhas; row++) {
         for (let col = 0; col < this.colunas; col++) {
             const ruido = simplex.noise2D(col * escala, row * escala);
 
             // Valores altos geram florestas densas
-            if (ruido > 0.35) {
+            if (ruido > 0.7) {
                 const pixelX = col * this.passo;
                 const pixelY = row * this.passo;
                 this.map[row][col] = new Arvore(pixelX, pixelY);

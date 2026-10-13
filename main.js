@@ -228,7 +228,8 @@ function desenharMundo(centroX, centroY, fatorY) {
                                 const pixelX = x * passo;
                 const pixelY = y * passo;
                 filaDeDesenho.push({
-                    yBase: objeto.y + (objeto.tamanho || tamanhoCelula) / 2,
+        xBase: objeto.x + (objeto.tamanhoPlayer || 60) / 2,
+        yBase: objeto.y + (objeto.tamanhoPlayer || 60) / 2,
                     desenhar: () => {
                         objeto.atualizar(performance.now());
                         objeto.desenhar(ctx, anguloAtual * (Math.PI / 180), fatorY, objeto.tamanho || tamanhoCelula);
@@ -241,12 +242,13 @@ function desenharMundo(centroX, centroY, fatorY) {
 
     // Adiciona o Player na mesma fila
     const direcaoX = player.olhandoPraDireita ? 1 : -1;
-    filaDeDesenho.push({
-        yBase: player.y + player.tamanhoPlayer / 2,
-        desenhar: () => {
-            player.desenhar(ctx, anguloAtual * (Math.PI / 180), fatorY, player.tamanhoPlayer, direcaoX);
-        }
-    });
+filaDeDesenho.push({
+    xBase: player.x + player.tamanhoPlayer / 2,
+    yBase: player.y + player.tamanhoPlayer / 2,
+    desenhar: () => {
+        player.desenhar(ctx, anguloAtual * (Math.PI / 180), fatorY, player.tamanhoPlayer);
+    }
+});
 
     // ORDENAÇÃO POR Y: quem está mais ao norte desenha primeiro, quem está ao sul desenha por cima
     filaDeDesenho.sort((a, b) => {
