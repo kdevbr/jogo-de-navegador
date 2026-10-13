@@ -28,6 +28,9 @@ var anguloR = 45
 
 htmlMap.css("transform", "none");
 
+const params = new URLSearchParams(location.search);
+let debugMode = params.has("d");
+
 function redimensionarCanvas() {
     pixelRatio = window.devicePixelRatio || 1;
     canvasSize = Math.max(window.innerWidth, window.innerHeight) * 2;
@@ -255,8 +258,20 @@ filaDeDesenho.push({
         return calcularProfundidadeTela(a.xBase, a.yBase) - calcularProfundidadeTela(b.xBase, b.yBase);
     });
 
+    // DEBUG: círculo vermelho = área de colisão das árvores
     // Desenha tudo na ordem correta de profundidade
     filaDeDesenho.forEach(item => item.desenhar());
+    if (!debugMode) return;
+    for (let y = primeiraLinha; y <= ultimaLinha; y++) {
+        for (let x = primeiraColuna; x <= ultimaColuna; x++) {
+            if (x >= 0 && x < colunas && y >= 0 && y < linhas && world.map[y][x]) {
+                ctx.beginPath();
+                ctx.arc(x * passo + passo / 2, y * passo + passo / 2, 20, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255,0,0,0.4)";
+                ctx.fill();
+            }
+        }
+    }
     
 }
 

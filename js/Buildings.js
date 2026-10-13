@@ -1,5 +1,5 @@
 export class Entidade {
-    constructor(x, y, CatalogoDeSprites) {
+    constructor(x, y, CatalogoDeSprites = {}) {
         this.x = x;
         this.y = y;
         this.CatalogoDeSprites = CatalogoDeSprites;
@@ -39,7 +39,7 @@ ctx.save();
         ctx.scale(this.olhandoPraEsquerda ? -1 : 1, fatorY);
 
         // Se for árvore/objeto no chão, ancora nos pés (-tamanho + 15). Se for player, fica no meio (-tamanho / 2)
-        const offsetVertical = this.ancoraBase ? (-tamanho + 15) : (-tamanho / 2);
+const offsetVertical = this.ancoraBase ? (-tamanho + (this.margemPe ?? 0)) : (-tamanho / 2);
 
         ctx.drawImage(
             anim.img,
@@ -55,6 +55,9 @@ export class Arvore extends Entidade {
         super(x, y, {
             idle: {img: carregarimagem("img/Tree1.png"), frames: 8, speed: 100}
         })
+        this.tamanho = 160;
+this.ancoraBase = true;
+this.margemPe = 45; // pixels transparentes embaixo do sprite, até o pé do tronco
         this.tamanho = 160;
     }
 }
